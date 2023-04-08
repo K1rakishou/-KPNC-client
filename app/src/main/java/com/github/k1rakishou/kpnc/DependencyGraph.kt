@@ -1,8 +1,10 @@
 package com.github.k1rakishou.kpnc
 
 import android.content.Context
-import com.github.k1rakishou.kpnc.data.Host
+import com.github.k1rakishou.kpnc.model.data.Host
 import com.github.k1rakishou.kpnc.domain.*
+import com.github.k1rakishou.kpnc.model.repository.AccountRepository
+import com.github.k1rakishou.kpnc.model.repository.AccountRepositoryImpl
 import com.github.k1rakishou.kpnc.ui.main.MainViewModel
 import com.squareup.moshi.Moshi
 import okhttp3.OkHttpClient
@@ -28,7 +30,9 @@ object DependencyGraph {
       MainViewModel(
         sharedPrefs = get(),
         googleServicesChecker = get(),
-        teshPushMessageSender = get()
+        teshPushMessageSender = get(),
+        messageReceiver = get(),
+        accountRepository = get()
       )
     }
   }
@@ -41,6 +45,7 @@ object DependencyGraph {
     single { host }
 
     single<GoogleServicesChecker> { GoogleServicesCheckerImpl(applicationContext = get()) }
+    single<AccountRepository> { AccountRepositoryImpl(host = get(), okHttpClient = get(), moshi = get()) }
     single<TokenUpdater> {
       TokenUpdaterImpl(
         sharedPrefs = get(),
@@ -49,7 +54,7 @@ object DependencyGraph {
         okHttpClient = get()
       )
     }
-    single<MessageProcessor> { MessageProcessorImpl() }
+    single<MessageReceiver> { MessageReceiverImpl() }
     single<TeshPushMessageSender> {
       TeshPushMessageSenderImpl(
         host = get(),

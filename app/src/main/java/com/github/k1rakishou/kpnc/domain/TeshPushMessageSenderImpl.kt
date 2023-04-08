@@ -2,8 +2,8 @@ package com.github.k1rakishou.kpnc.domain
 
 import android.content.SharedPreferences
 import com.github.k1rakishou.kpnc.AppConstants
-import com.github.k1rakishou.kpnc.data.Host
-import com.github.k1rakishou.kpnc.data.SendTestPushRequest
+import com.github.k1rakishou.kpnc.model.data.Host
+import com.github.k1rakishou.kpnc.model.data.network.SendTestPushRequest
 import com.github.k1rakishou.kpnc.helpers.logcatDebug
 import com.squareup.moshi.Moshi
 import okhttp3.MediaType.Companion.toMediaType

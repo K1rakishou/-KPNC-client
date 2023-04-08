@@ -9,7 +9,7 @@ import java.util.concurrent.Executors
 class KPNCFirebaseServiceDelegateImpl(
   private val sharedPrefs: SharedPreferences,
   private val tokenUpdater: TokenUpdater,
-  private val messageProcessor: MessageProcessor
+  private val messageProcessor: MessageReceiver
 ) : KPNCFirebaseServiceDelegate {
   private val executor = Executors.newSingleThreadExecutor()
 

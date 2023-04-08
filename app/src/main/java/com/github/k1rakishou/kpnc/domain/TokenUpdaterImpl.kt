@@ -2,8 +2,8 @@ package com.github.k1rakishou.kpnc.domain
 
 import android.content.SharedPreferences
 import com.github.k1rakishou.kpnc.AppConstants
-import com.github.k1rakishou.kpnc.data.Host
-import com.github.k1rakishou.kpnc.data.UpdateTokenRequest
+import com.github.k1rakishou.kpnc.model.data.Host
+import com.github.k1rakishou.kpnc.model.data.network.UpdateTokenRequest
 import com.github.k1rakishou.kpnc.helpers.logcatDebug
 import com.github.k1rakishou.kpnc.helpers.logcatError
 import com.squareup.moshi.Moshi
@@ -48,13 +48,13 @@ class TokenUpdaterImpl(
     try {
       val email = sharedPrefs.getString(AppConstants.PrefKeys.EMAIL, null)
       if (email.isNullOrEmpty()) {
-        logcatError(TAG) { "onNewToken() email is null or empty" }
+        logcatError(TAG) { "onNewToken() accountId is null or empty" }
         return
       }
 
       val updateTokenRequest = UpdateTokenRequest(
         email = email,
-        token = token
+        firebaseToken = token
       )
 
       val updateTokenRequestJson = moshi.adapter(UpdateTokenRequest::class.java)
