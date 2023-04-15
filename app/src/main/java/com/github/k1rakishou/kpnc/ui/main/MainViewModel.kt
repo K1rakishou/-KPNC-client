@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.k1rakishou.kpnc.AppConstants
 import com.github.k1rakishou.kpnc.domain.GoogleServicesChecker
 import com.github.k1rakishou.kpnc.domain.MessageReceiver
-import com.github.k1rakishou.kpnc.domain.TeshPushMessageSender
+import com.github.k1rakishou.kpnc.domain.TokenUpdater
 import com.github.k1rakishou.kpnc.helpers.*
 import com.github.k1rakishou.kpnc.model.data.ui.UiResult
 import com.github.k1rakishou.kpnc.model.data.ui.AccountInfo
@@ -22,13 +22,13 @@ import org.joda.time.DateTime
 class MainViewModel(
   private val sharedPrefs: SharedPreferences,
   private val googleServicesChecker: GoogleServicesChecker,
-  private val teshPushMessageSender: TeshPushMessageSender,
   private val messageReceiver: MessageReceiver,
+  private val tokenUpdater: TokenUpdater,
   private val accountRepository: AccountRepository,
 ) : ViewModel() {
-  private val _rememberedEmail = mutableStateOf<String?>(null)
-  val rememberedEmail: State<String?>
-    get() = _rememberedEmail
+  private val _rememberedUserId = mutableStateOf<String?>(null)
+  val rememberedUserId: State<String?>
+    get() = _rememberedUserId
   
   private val _googleServicesCheckResult = mutableStateOf<GoogleServicesChecker.Result>(GoogleServicesChecker.Result.Empty)
   val googleServicesCheckResult: State<GoogleServicesChecker.Result>
@@ -42,8 +42,6 @@ class MainViewModel(
   val accountInfo: State<UiResult<AccountInfo>>
     get() = _accountInfo
 
-  val messageQueue = messageReceiver.messageQueue
-
   init {
     viewModelScope.launch {
       val result = googleServicesChecker.checkGoogleServicesStatus()
@@ -54,7 +52,7 @@ class MainViewModel(
       }
 
       _firebaseToken.value = UiResult.Loading
-      _rememberedEmail.value = sharedPrefs.getString(AppConstants.PrefKeys.EMAIL, null)
+      _rememberedUserId.value = sharedPrefs.getString(AppConstants.PrefKeys.USER_ID, null)
         ?.takeIf { it.isNotBlank() }
 
       retrieveFirebaseToken()
@@ -66,15 +64,25 @@ class MainViewModel(
     }
   }
 
-  fun login(email: String) {
+  fun login(userId: String) {
     viewModelScope.launch {
       withContext(Dispatchers.IO) {
         _accountInfo.value = UiResult.Loading
 
-        val accountInfoResult = accountRepository.getAccountInfo(email)
+        val firebaseToken = sharedPrefs.getString(AppConstants.PrefKeys.TOKEN, null)
+        if (firebaseToken.isNullOrEmpty()) {
+          return@withContext
+        }
+
+        if (!tokenUpdater.updateToken(userId, firebaseToken)) {
+          logcatError(TAG) { "updateFirebaseToken() updateToken() returned false" }
+          return@withContext
+        }
+
+        val accountInfoResult = accountRepository.getAccountInfo(userId)
         if (accountInfoResult.isFailure) {
           logcatError(TAG) {
-            "getAccountInfo() error: " +
+            "updateFirebaseToken() error: " +
               "${accountInfoResult.exceptionOrNull()?.asLogIfImportantOrErrorMessage()}"
           }
 
@@ -90,19 +98,25 @@ class MainViewModel(
         )
 
         sharedPrefs.edit { 
-          putString(AppConstants.PrefKeys.EMAIL, email) 
+          putString(AppConstants.PrefKeys.USER_ID, userId)
         }
         _accountInfo.value = UiResult.Value(accountInfo)
 
-        logcatDebug(TAG) { "getAccountInfo() success" }
+        logcatDebug(TAG) { "updateFirebaseToken() success" }
       }
     }
   }
 
-  fun sendTestPush(email: String) {
+  fun logout() {
     viewModelScope.launch {
       withContext(Dispatchers.IO) {
-        teshPushMessageSender.sendTestPushMessage(email)
+        sharedPrefs.edit {
+          remove(AppConstants.PrefKeys.TOKEN)
+          remove(AppConstants.PrefKeys.USER_ID)
+        }
+
+        _accountInfo.value = UiResult.Empty
+        _rememberedUserId.value = null
       }
     }
   }

@@ -5,8 +5,8 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class UpdateTokenRequest(
-  @Json(name = "email")
-  val email: String,
+  @Json(name = "user_id")
+  val userId: String,
   @Json(name = "firebase_token")
   val firebaseToken: String
 )

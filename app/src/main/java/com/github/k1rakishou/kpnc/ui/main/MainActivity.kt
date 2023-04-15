@@ -12,12 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.github.k1rakishou.kpnc.domain.GoogleServicesChecker
-import com.github.k1rakishou.kpnc.helpers.asLogIfImportantOrErrorMessage
 import com.github.k1rakishou.kpnc.helpers.errorMessageOrClassName
+import com.github.k1rakishou.kpnc.helpers.isUserIdValid
 import com.github.k1rakishou.kpnc.model.data.ui.AccountInfo
 import com.github.k1rakishou.kpnc.model.data.ui.UiResult
 import com.github.k1rakishou.kpnc.ui.theme.KPNCTheme
-import kotlinx.coroutines.flow.collect
 import logcat.asLog
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.component.KoinComponent
@@ -39,16 +38,7 @@ class MainActivity : ComponentActivity(), KoinComponent {
           val firebaseToken by mainViewModel.firebaseToken
           val googleServicesCheckResult by mainViewModel.googleServicesCheckResult
           val accountInfo by mainViewModel.accountInfo
-          val rememberedEmail by mainViewModel.rememberedEmail
-
-          LaunchedEffect(
-            key1 = Unit,
-            block = {
-              mainViewModel.messageQueue.collect { message ->
-                showToast(context, "(${message.messageId}): ${message.data}")
-              }
-            }
-          )
+          val rememberedUserId by mainViewModel.rememberedUserId
 
           Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -61,9 +51,9 @@ class MainActivity : ComponentActivity(), KoinComponent {
                 googleServicesCheckResult = googleServicesCheckResult,
                 firebaseToken = firebaseToken,
                 accountInfo = accountInfo,
-                rememberedEmail = rememberedEmail,
-                onLoginClicked = { email -> mainViewModel.login(email) },
-                onSendTestPushClicked = { email -> mainViewModel.sendTestPush(email) },
+                rememberedUserId = rememberedUserId,
+                onLogin = { userId -> mainViewModel.login(userId) },
+                onLogout = { mainViewModel.logout() }
               )
             }
           }
@@ -76,11 +66,11 @@ class MainActivity : ComponentActivity(), KoinComponent {
 @Composable
 private fun ColumnScope.Content(
   googleServicesCheckResult: GoogleServicesChecker.Result,
-  rememberedEmail: String?,
+  rememberedUserId: String?,
   accountInfo: UiResult<AccountInfo>,
   firebaseToken: UiResult<String>,
-  onLoginClicked: (String) -> Unit,
-  onSendTestPushClicked: (String) -> Unit,
+  onLogin: (String) -> Unit,
+  onLogout: () -> Unit
 ) {
   val context = LocalContext.current
 
@@ -121,15 +111,26 @@ private fun ColumnScope.Content(
   Text(text = "Firebase token: ${firebaseToken.value}")
   Spacer(modifier = Modifier.height(16.dp))
 
-  var email by remember { mutableStateOf(rememberedEmail ?: "") }
+  var userId by remember { mutableStateOf(rememberedUserId ?: "") }
+  var isError by remember { mutableStateOf(!isUserIdValid(userId)) }
+  val isLoggedIn = ((accountInfo as? UiResult.Value)?.value?.isValid == true) || isUserIdValid(rememberedUserId)
 
   TextField(
     modifier = Modifier
       .wrapContentHeight()
       .fillMaxWidth(),
-    label = { Text(text = "Email") },
-    value = email,
-    onValueChange = { email = it }
+    enabled = !isLoggedIn,
+    label = { Text(text = "UserId (${userId.length}/128)") },
+    isError = isError,
+    value = userId,
+    onValueChange = {
+      userId = it
+      isError = !isUserIdValid(userId)
+
+      if (isError) {
+        showToast(context, "UserId length must be within 32..128 characters range")
+      }
+    }
   )
 
   Spacer(modifier = Modifier.height(4.dp))
@@ -150,21 +151,29 @@ private fun ColumnScope.Content(
 
   Spacer(modifier = Modifier.height(4.dp))
 
+  val buttonEnabled = if (isLoggedIn) {
+    true
+  } else {
+    isUserIdValid(userId) && accountInfo !is UiResult.Loading
+  }
+
   Row {
     Button(
-      enabled = email.isNotEmpty() && accountInfo !is UiResult.Loading,
-      onClick = { onLoginClicked(email) }
+      enabled = buttonEnabled,
+      onClick = {
+        if (isLoggedIn) {
+          userId = ""
+          onLogout()
+        } else {
+          onLogin(userId)
+        }
+      }
     ) {
-      Text(text = "Login")
-    }
-
-    Spacer(modifier = Modifier.width(16.dp))
-
-    Button(
-      enabled = email.isNotEmpty() && accountInfo is UiResult.Value,
-      onClick = { onSendTestPushClicked(email) }
-    ) {
-      Text(text = "Send test push")
+      if (isLoggedIn) {
+        Text(text = "Logout")
+      } else {
+        Text(text = "Login")
+      }
     }
   }
 }

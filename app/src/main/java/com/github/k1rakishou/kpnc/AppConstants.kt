@@ -3,7 +3,7 @@ package com.github.k1rakishou.kpnc
 object AppConstants {
   object PrefKeys {
     const val TOKEN = "token"
-    const val EMAIL = "email"
+    const val USER_ID = "user_id"
   }
 
   object MessageKeys {

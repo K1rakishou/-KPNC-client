@@ -1,7 +1,7 @@
 package com.github.k1rakishou.kpnc.model.data
 
 @JvmInline
-value class Host(
+value class Endpoints(
   private val value: String
 ) {
 
@@ -11,6 +11,10 @@ value class Host(
 
   fun updateFirebaseTokenEndpoint(): String {
     return "${value}/update_firebase_token"
+  }
+
+  fun watchPost(): String {
+    return "${value}/watch_post"
   }
 
   fun sendTestPushEndpoint(): String {

@@ -4,6 +4,12 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
+data class AccountInfoRequest(
+  @Json(name = "user_id")
+  val userId: String
+)
+
+@JsonClass(generateAdapter = true)
 class AccountInfoResponseWrapper(
   override val data: AccountInfoResponse?,
   override val error: String?
@@ -15,15 +21,5 @@ data class AccountInfoResponse(
   @Json(name = "is_valid")
   val isValid: Boolean,
   @Json(name = "valid_until")
-  val validUntil: Long
-) {
-
-  fun valid(): Boolean {
-    if (validUntil <= 0) {
-      return false
-    }
-
-    return true
-  }
-
-}
+  val validUntil: Long?
+)

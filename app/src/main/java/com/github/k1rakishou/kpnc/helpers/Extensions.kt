@@ -1,22 +1,31 @@
 package com.github.k1rakishou.kpnc.helpers
 
+import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
 import com.github.k1rakishou.kpnc.model.BadStatusResponseException
 import com.github.k1rakishou.kpnc.model.EmptyBodyResponseException
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.suspendCancellableCoroutine
+import com.github.k1rakishou.kpnc.model.JsonConversionException
+import com.squareup.moshi.JsonAdapter
+import kotlinx.coroutines.*
 import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
 import okhttp3.*
+import okio.*
 import java.io.IOException
+import java.io.InputStream
 import java.io.InterruptedIOException
+import java.io.OutputStream
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeoutException
 import javax.net.ssl.SSLException
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 import kotlin.coroutines.resume
+import kotlin.io.use
 
 inline fun logcatError(
   tag: String,
@@ -98,6 +107,51 @@ suspend fun OkHttpClient.suspendCall(request: Request): Result<Response> {
   return Result.success(response)
 }
 
+suspend inline fun <reified T : Any?> OkHttpClient.suspendConvertWithJsonAdapter(
+  request: Request,
+  adapter: JsonAdapter<T>
+): Result<out T> {
+  return withContext(Dispatchers.IO) {
+    return@withContext Result.Try {
+      logcat(priority = LogPriority.VERBOSE) { "suspendConvertWithJsonAdapter() url='${request.url}' start" }
+      val response = suspendCall(request).unwrap()
+      logcat(priority = LogPriority.VERBOSE) { "suspendConvertWithJsonAdapter() url='${request.url}' end" }
+
+      if (!response.isSuccessful) {
+        throw BadStatusResponseException(response.code)
+      }
+
+      val body = response.body
+      if (body == null) {
+        throw EmptyBodyResponseException()
+      }
+
+      return@Try body.useBufferedSource { bufferedSource -> adapter.fromJson(bufferedSource) as T }
+        ?: throw JsonConversionException("Failed to convert json with adapter: ${adapter::class.java.simpleName}")
+    }
+  }
+}
+
+inline fun <T : Any?> ResponseBody.useBufferedSource(useFunc: (BufferedSource) -> T): T {
+  return byteStream().use { inputStream ->
+    return@use inputStream.useBufferedSource(useFunc)
+  }
+}
+
+inline fun <T : Any?> OutputStream.useBufferedSink(useFunc: (BufferedSink) -> T): T {
+  return sink().buffer().use { bufferedSink ->
+    return@use useFunc(bufferedSink)
+  }
+}
+
+
+inline fun <T : Any?> InputStream.useBufferedSource(useFunc: (BufferedSource) -> T): T {
+  return source().use { source ->
+    return@use source.buffer().use { buffer ->
+      return@use useFunc(buffer)
+    }
+  }
+}
 
 fun <T> CancellableContinuation<T>.resumeValueSafe(value: T) {
   if (isActive) {
@@ -217,4 +271,39 @@ inline fun <T> Collection<T>?.isNotNullNorEmpty(): Boolean {
   }
 
   return this != null && this.size > 0
+}
+
+suspend fun sendOrderedBroadcastSuspend(
+  context: Context,
+  intent: Intent,
+  receiverPermission: String?
+): Bundle? {
+  return withTimeoutOrNull(30_000) {
+    return@withTimeoutOrNull withContext(Dispatchers.IO) {
+      return@withContext suspendCancellableCoroutine<Bundle?> { cancellableContinuation ->
+        try {
+          context.sendOrderedBroadcast(
+            intent,
+            receiverPermission,
+            object : BroadcastReceiver() {
+              override fun onReceive(context: Context?, resultIntent: Intent?) {
+                cancellableContinuation.resumeValueSafe(getResultExtras(false))
+              }
+            },
+            null,
+            Activity.RESULT_OK,
+            null,
+            null
+          )
+        } catch (error: Throwable) {
+          logcatError("sendOrderedBroadcastSuspend") {
+            "context.sendOrderedBroadcast() " +
+              "action=${intent.action} error: ${error.asLogIfImportantOrErrorMessage()}"
+          }
+
+          cancellableContinuation.resumeValueSafe(null)
+        }
+      }
+    }
+  }
 }

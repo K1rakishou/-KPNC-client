@@ -1,10 +1,12 @@
 package com.github.k1rakishou.kpnc
 
 import android.content.Context
-import com.github.k1rakishou.kpnc.model.data.Host
+import com.github.k1rakishou.kpnc.model.data.Endpoints
 import com.github.k1rakishou.kpnc.domain.*
 import com.github.k1rakishou.kpnc.model.repository.AccountRepository
 import com.github.k1rakishou.kpnc.model.repository.AccountRepositoryImpl
+import com.github.k1rakishou.kpnc.model.repository.PostRepository
+import com.github.k1rakishou.kpnc.model.repository.PostRepositoryImpl
 import com.github.k1rakishou.kpnc.ui.main.MainViewModel
 import com.squareup.moshi.Moshi
 import okhttp3.OkHttpClient
@@ -13,7 +15,7 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 object DependencyGraph {
-  private val host = Host("http://127.0.0.1:3000")
+  private val endpoints = Endpoints("http://127.0.0.1:3000")
 
   fun initialize(applicationContext: Context): List<Module> {
     val modules = mutableListOf<Module>()
@@ -30,8 +32,8 @@ object DependencyGraph {
       MainViewModel(
         sharedPrefs = get(),
         googleServicesChecker = get(),
-        teshPushMessageSender = get(),
         messageReceiver = get(),
+        tokenUpdater = get(),
         accountRepository = get()
       )
     }
@@ -42,28 +44,28 @@ object DependencyGraph {
     single { applicationContext.getSharedPreferences("kpnc", Context.MODE_PRIVATE) }
     single { Moshi.Builder().build() }
     single { OkHttpClient.Builder().build() }
-    single { host }
+    single { endpoints }
 
     single<GoogleServicesChecker> { GoogleServicesCheckerImpl(applicationContext = get()) }
-    single<AccountRepository> { AccountRepositoryImpl(host = get(), okHttpClient = get(), moshi = get()) }
+    single<AccountRepository> { AccountRepositoryImpl(endpoints = get(), okHttpClient = get(), moshi = get()) }
+    single<PostRepository> {
+      PostRepositoryImpl(
+        endpoints = get(),
+        okHttpClient = get(),
+        moshi = get(),
+        sharedPrefs = get()
+      )
+    }
     single<TokenUpdater> {
       TokenUpdaterImpl(
         sharedPrefs = get(),
-        host = host,
+        endpoints = endpoints,
         moshi = get(),
         okHttpClient = get()
       )
     }
     single<MessageReceiver> { MessageReceiverImpl() }
-    single<TeshPushMessageSender> {
-      TeshPushMessageSenderImpl(
-        host = get(),
-        moshi = get(),
-        sharedPrefs = get(),
-        okHttpClient = get(),
-        tokenUpdater = get()
-      )
-    }
+
     single<KPNCFirebaseServiceDelegate> {
       KPNCFirebaseServiceDelegateImpl(
         sharedPrefs = get(),
@@ -71,5 +73,6 @@ object DependencyGraph {
         messageProcessor = get()
       )
     }
+    single<ClientAppNotifier> { ClientAppNotifierImpl(appContext = get()) }
   }
 }

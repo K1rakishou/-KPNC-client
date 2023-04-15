@@ -16,7 +16,7 @@ class KPNCFirebaseServiceDelegateImpl(
   init {
     executor.execute {
       sharedPrefs.getString(AppConstants.PrefKeys.TOKEN, null)
-        ?.let { token -> tokenUpdater.updateToken(token) }
+        ?.let { token -> tokenUpdater.updateToken(null, token) }
     }
   }
 
@@ -24,7 +24,7 @@ class KPNCFirebaseServiceDelegateImpl(
     sharedPrefs.edit { putString(AppConstants.PrefKeys.TOKEN, token) }
 
     tokenUpdater.reset()
-    tokenUpdater.updateToken(token)
+    tokenUpdater.updateToken(null, token)
   }
 
   override fun onMessageReceived(message: RemoteMessage) {
