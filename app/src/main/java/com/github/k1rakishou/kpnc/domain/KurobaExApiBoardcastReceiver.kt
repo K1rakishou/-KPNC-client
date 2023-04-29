@@ -6,7 +6,12 @@ import android.content.Intent
 import android.content.SharedPreferences
 import androidx.core.os.bundleOf
 import com.github.k1rakishou.kpnc.AppConstants
-import com.github.k1rakishou.kpnc.helpers.*
+import com.github.k1rakishou.kpnc.helpers.asLogIfImportantOrErrorMessage
+import com.github.k1rakishou.kpnc.helpers.errorMessageOrClassName
+import com.github.k1rakishou.kpnc.helpers.isNotNullNorBlank
+import com.github.k1rakishou.kpnc.helpers.isUserIdValid
+import com.github.k1rakishou.kpnc.helpers.logcatDebug
+import com.github.k1rakishou.kpnc.helpers.logcatError
 import com.github.k1rakishou.kpnc.model.repository.AccountRepository
 import com.github.k1rakishou.kpnc.model.repository.PostRepository
 import com.squareup.moshi.Json
@@ -105,17 +110,19 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
 
     val userId = sharedPrefs.getString(AppConstants.PrefKeys.USER_ID, null)
       ?.takeIf { userId -> isUserIdValid(userId) }
+    val instanceAddress = sharedPrefs.getString(AppConstants.PrefKeys.INSTANCE_ADDRESS, null)
+      ?.takeIf { instanceAddress -> instanceAddress.isNotNullNorBlank() }
 
-    val kpncInfoResult = if (userId != null) {
-      logcatDebug(TAG) { "UserId is OK" }
+    val kpncInfoResult = if (instanceAddress != null && userId != null) {
+      logcatDebug(TAG) { "InstanceAddress and UserId are OK" }
 
-      val accountInfoResult = accountRepository.getAccountInfo(userId)
+      val accountInfoResult = accountRepository.getAccountInfo(instanceAddress, userId)
       if (accountInfoResult.isFailure) {
         val exception = accountInfoResult.exceptionOrNull()!!
         logcatDebug(TAG) { "getAccountInfo() error: ${exception.asLogIfImportantOrErrorMessage()}" }
 
         KPNCInfoResult(
-          error = exception.errorMessageOrClassName()
+          error = exception.errorMessageOrClassName(userReadable = true)
         )
       } else {
         val isValid = accountInfoResult.getOrNull()!!.isValid
@@ -126,7 +133,7 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
         )
       }
     } else {
-      logcatDebug(TAG) { "Bad userId: ${userId}" }
+      logcatDebug(TAG) { "Bad userId: ${userId} or instanceAddress: ${instanceAddress}" }
 
       KPNCInfoResult(
         data = KPNCInfoJson(appApiVersion = API_VERSION, isAccountValid = false)

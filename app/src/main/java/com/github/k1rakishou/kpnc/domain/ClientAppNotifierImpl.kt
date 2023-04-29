@@ -3,56 +3,56 @@ package com.github.k1rakishou.kpnc.domain
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
+import com.github.k1rakishou.kpnc.helpers.Try
 import com.github.k1rakishou.kpnc.helpers.logcatDebug
-import com.github.k1rakishou.kpnc.helpers.sendOrderedBroadcastSuspend
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
+import com.github.k1rakishou.kpnc.helpers.sendOrderedBroadcastBlocking
 
 class ClientAppNotifierImpl(
   private val appContext: Context,
 ) : ClientAppNotifier {
-  private val mainScope = MainScope()
 
-  override fun onRepliesReceived(postUrls: List<String>) {
-    logcatDebug(TAG) { "onRepliesReceived() postUrls: ${postUrls.size}" }
+  override fun onRepliesReceived(postUrls: List<String>): Result<Unit> {
+    return Result.Try {
+      logcatDebug(TAG) { "onRepliesReceived() postUrls: ${postUrls.size}" }
 
-    if (postUrls.isEmpty()) {
-      return
+      if (postUrls.isEmpty()) {
+        return@Try
+      }
+
+      postUrls.forEach { postUrl ->
+        logcatDebug(TAG) { "onRepliesReceived() postUrl: ${postUrl}" }
+      }
+
+      onRepliesReceivedInternal(postUrls)
     }
-
-    postUrls.forEach { postUrl ->
-      logcatDebug(TAG) { "onRepliesReceived() postUrl: ${postUrl}" }
-    }
-
-    mainScope.launch { onRepliesReceivedInternal(postUrls) }
   }
 
-  private suspend fun onRepliesReceivedInternal(postUrls: List<String>) {
+  private fun onRepliesReceivedInternal(postUrls: List<String>) {
     val intent = Intent(ACTION_ON_NEW_REPLIES_RECEIVED)
     intent.putExtra(POST_URLS_PARAM, postUrls.toTypedArray())
 
     sendBroadcastInternal(appContext, intent)
   }
 
-  private suspend fun sendBroadcastInternal(context: Context, intent: Intent): Bundle? {
+  private fun sendBroadcastInternal(context: Context, intent: Intent) {
     val broadcastReceiversInfo = context.packageManager.queryBroadcastReceivers(intent, 0)
     logcat.logcat(TAG) { "broadcastReceiversInfo=${broadcastReceiversInfo.size}" }
 
-    val broadcastReceiver = broadcastReceiversInfo.firstOrNull()
-      ?: return null
+    for (broadcastReceiver in broadcastReceiversInfo) {
+      logcat.logcat(TAG) {
+        "Using packageName: ${broadcastReceiver.activityInfo.packageName}, " +
+          "name: ${broadcastReceiver.activityInfo.name}"
+      }
 
-    logcat.logcat(TAG) {
-      "Using packageName: ${broadcastReceiver.activityInfo.packageName}, "
-      "name: ${broadcastReceiver.activityInfo.name}"
+      intent.component = ComponentName(
+        broadcastReceiver.activityInfo.packageName,
+        broadcastReceiver.activityInfo.name
+      )
+
+      logcatDebug(TAG) { "sendOrderedBroadcastSuspend() start..." }
+      sendOrderedBroadcastBlocking(context, intent, null)
+      logcatDebug(TAG) { "sendOrderedBroadcastSuspend() end..." }
     }
-
-    intent.component = ComponentName(
-      broadcastReceiver.activityInfo.packageName,
-      broadcastReceiver.activityInfo.name
-    )
-
-    return sendOrderedBroadcastSuspend(context, intent, null)
   }
 
   companion object {

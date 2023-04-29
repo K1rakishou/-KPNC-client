@@ -2,11 +2,11 @@
 
 buildscript {
     ext {
-        kotlin_version = '1.8.10'
-        ksp_version = '1.8.10-1.0.9'
+        kotlin_version = '1.8.20'
+        ksp_version = '1.8.20-1.0.11'
         moshi_version = '1.14.0'
         koin_version = "3.3.3"
-        compose_ui_version = '1.4.0'
+        compose_ui_version = '1.5.0-alpha03'
         joda_time = "2.10.10"
     }
     repositories {

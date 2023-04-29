@@ -2,7 +2,10 @@ package com.github.k1rakishou.kpnc.model.repository
 
 import android.content.SharedPreferences
 import com.github.k1rakishou.kpnc.AppConstants
-import com.github.k1rakishou.kpnc.helpers.*
+import com.github.k1rakishou.kpnc.helpers.Try
+import com.github.k1rakishou.kpnc.helpers.isNotNullNorBlank
+import com.github.k1rakishou.kpnc.helpers.suspendConvertWithJsonAdapter
+import com.github.k1rakishou.kpnc.helpers.unwrap
 import com.github.k1rakishou.kpnc.model.GenericClientException
 import com.github.k1rakishou.kpnc.model.data.Endpoints
 import com.github.k1rakishou.kpnc.model.data.network.WatchPostRequest
@@ -28,6 +31,9 @@ class PostRepositoryImpl(
         val userId = sharedPrefs.getString(AppConstants.PrefKeys.USER_ID, null)
           ?.takeIf { it.isNotNullNorBlank() }
           ?: throw GenericClientException("UserId is not set")
+        val instanceAddress = sharedPrefs.getString(AppConstants.PrefKeys.INSTANCE_ADDRESS, null)
+          ?.takeIf { it.isNotNullNorBlank() }
+          ?: throw GenericClientException("InstanceAddress is not set")
 
         val watchPostRequest = WatchPostRequest(
           userId = userId,
@@ -40,7 +46,7 @@ class PostRepositoryImpl(
         val requestBody = watchPostRequestJson.toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-          .url(endpoints.watchPost())
+          .url(endpoints.watchPost(instanceAddress))
           .post(requestBody)
           .build()
 

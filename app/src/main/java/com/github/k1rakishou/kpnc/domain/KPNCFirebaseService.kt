@@ -14,13 +14,15 @@ class KPNCFirebaseService : FirebaseMessagingService(), KoinComponent {
   }
 
   override fun onNewToken(token: String) {
-    logcatDebug(TAG) { "onNewToken()" }
+    logcatDebug(TAG) { "onNewToken() start" }
     kpncFirebaseServiceDelegate.onNewToken(token)
+    logcatDebug(TAG) { "onNewToken() end" }
   }
 
   override fun onMessageReceived(message: RemoteMessage) {
-    logcatDebug(TAG) { "onMessageReceived()" }
+    logcatDebug(TAG) { "onMessageReceived() start" }
     kpncFirebaseServiceDelegate.onMessageReceived(message)
+    logcatDebug(TAG) { "onMessageReceived() end" }
   }
 
   companion object {

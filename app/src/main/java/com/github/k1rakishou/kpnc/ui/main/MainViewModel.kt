@@ -10,13 +10,19 @@ import com.github.k1rakishou.kpnc.AppConstants
 import com.github.k1rakishou.kpnc.domain.GoogleServicesChecker
 import com.github.k1rakishou.kpnc.domain.MessageReceiver
 import com.github.k1rakishou.kpnc.domain.TokenUpdater
-import com.github.k1rakishou.kpnc.helpers.*
-import com.github.k1rakishou.kpnc.model.data.ui.UiResult
+import com.github.k1rakishou.kpnc.helpers.asLogIfImportantOrErrorMessage
+import com.github.k1rakishou.kpnc.helpers.isNotNullNorBlank
+import com.github.k1rakishou.kpnc.helpers.logcatDebug
+import com.github.k1rakishou.kpnc.helpers.logcatError
+import com.github.k1rakishou.kpnc.helpers.retrieveFirebaseToken
+import com.github.k1rakishou.kpnc.helpers.unwrap
 import com.github.k1rakishou.kpnc.model.data.ui.AccountInfo
+import com.github.k1rakishou.kpnc.model.data.ui.UiResult
 import com.github.k1rakishou.kpnc.model.repository.AccountRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.joda.time.DateTime
 
 class MainViewModel(
@@ -29,6 +35,9 @@ class MainViewModel(
   private val _rememberedUserId = mutableStateOf<String?>(null)
   val rememberedUserId: State<String?>
     get() = _rememberedUserId
+  private val _rememberedInstanceAddress = mutableStateOf<String?>(null)
+  val rememberedInstanceAddress: State<String?>
+    get() = _rememberedInstanceAddress
   
   private val _googleServicesCheckResult = mutableStateOf<GoogleServicesChecker.Result>(GoogleServicesChecker.Result.Empty)
   val googleServicesCheckResult: State<GoogleServicesChecker.Result>
@@ -54,6 +63,8 @@ class MainViewModel(
       _firebaseToken.value = UiResult.Loading
       _rememberedUserId.value = sharedPrefs.getString(AppConstants.PrefKeys.USER_ID, null)
         ?.takeIf { it.isNotBlank() }
+      _rememberedInstanceAddress.value = sharedPrefs.getString(AppConstants.PrefKeys.INSTANCE_ADDRESS, null)
+        ?.takeIf { it.isNotBlank() }
 
       retrieveFirebaseToken()
         .onFailure { error -> _firebaseToken.value = UiResult.Error(error) }
@@ -62,9 +73,29 @@ class MainViewModel(
           _firebaseToken.value = UiResult.Value(token)
         }
     }
+
+    val instanceAddress = _rememberedInstanceAddress.value
+    val userId = _rememberedUserId.value
+
+    if (instanceAddress.isNotNullNorBlank() && userId.isNotNullNorBlank()) {
+      viewModelScope.launch {
+        val accountInfoResult = accountRepository.getAccountInfo(instanceAddress, userId)
+        if (accountInfoResult.isFailure) {
+          _accountInfo.value = UiResult.Error(accountInfoResult.exceptionOrNull()!!)
+        } else {
+          val accountInfoResponse = accountInfoResult.unwrap()
+
+          val accountInfo = AccountInfo(
+            isValid = accountInfoResponse.isValid,
+            validUntil = DateTime(accountInfoResponse.validUntil),
+          )
+          _accountInfo.value = UiResult.Value(accountInfo)
+        }
+      }
+    }
   }
 
-  fun login(userId: String) {
+  fun login(instanceAddress: String, userId: String) {
     viewModelScope.launch {
       withContext(Dispatchers.IO) {
         _accountInfo.value = UiResult.Loading
@@ -74,35 +105,50 @@ class MainViewModel(
           return@withContext
         }
 
-        if (!tokenUpdater.updateToken(userId, firebaseToken)) {
-          logcatError(TAG) { "updateFirebaseToken() updateToken() returned false" }
-          return@withContext
-        }
+        try {
+          withTimeout(20_000) {
+            val tokenUpdated = tokenUpdater.updateToken(instanceAddress, userId, firebaseToken)
+              .onFailure { error ->
+                logcatError(TAG) { "tokenUpdater.updateToken() " +
+                  "error: ${error.asLogIfImportantOrErrorMessage()}" }
+              }
+              .getOrDefault(false)
 
-        val accountInfoResult = accountRepository.getAccountInfo(userId)
-        if (accountInfoResult.isFailure) {
-          logcatError(TAG) {
-            "updateFirebaseToken() error: " +
-              "${accountInfoResult.exceptionOrNull()?.asLogIfImportantOrErrorMessage()}"
+            if (!tokenUpdated) {
+              logcatError(TAG) { "updateFirebaseToken() updateToken() returned false" }
+              return@withTimeout
+            }
+
+            val accountInfoResult = accountRepository.getAccountInfo(instanceAddress, userId)
+            if (accountInfoResult.isFailure) {
+              logcatError(TAG) {
+                "updateFirebaseToken() error: " +
+                  "${accountInfoResult.exceptionOrNull()?.asLogIfImportantOrErrorMessage()}"
+              }
+
+              _accountInfo.value = UiResult.Error(accountInfoResult.exceptionOrNull()!!)
+              return@withTimeout
+            }
+
+            val accountInfoResponse = accountInfoResult.getOrThrow()
+
+            val accountInfo = AccountInfo(
+              isValid = accountInfoResponse.isValid,
+              validUntil = DateTime(accountInfoResponse.validUntil),
+            )
+
+            sharedPrefs.edit {
+              putString(AppConstants.PrefKeys.USER_ID, userId)
+              putString(AppConstants.PrefKeys.INSTANCE_ADDRESS, instanceAddress)
+            }
+            _accountInfo.value = UiResult.Value(accountInfo)
+
+            logcatDebug(TAG) { "updateFirebaseToken() success" }
           }
-
-          _accountInfo.value = UiResult.Error(accountInfoResult.exceptionOrNull()!!)
-          return@withContext
+        } catch (error: Throwable) {
+          logcatDebug(TAG) { "updateFirebaseToken() error: ${error.asLogIfImportantOrErrorMessage()}" }
+          _accountInfo.value = UiResult.Error(error)
         }
-
-        val accountInfoResponse = accountInfoResult.getOrThrow()
-
-        val accountInfo = AccountInfo(
-          isValid = accountInfoResponse.isValid,
-          validUntil = DateTime(accountInfoResponse.validUntil),
-        )
-
-        sharedPrefs.edit { 
-          putString(AppConstants.PrefKeys.USER_ID, userId)
-        }
-        _accountInfo.value = UiResult.Value(accountInfo)
-
-        logcatDebug(TAG) { "updateFirebaseToken() success" }
       }
     }
   }

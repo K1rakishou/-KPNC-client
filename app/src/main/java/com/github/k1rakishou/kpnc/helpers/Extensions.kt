@@ -20,6 +20,8 @@ import java.io.InputStream
 import java.io.InterruptedIOException
 import java.io.OutputStream
 import java.net.SocketTimeoutException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import javax.net.ssl.SSLException
 import kotlin.contracts.ExperimentalContracts
@@ -273,37 +275,38 @@ inline fun <T> Collection<T>?.isNotNullNorEmpty(): Boolean {
   return this != null && this.size > 0
 }
 
-suspend fun sendOrderedBroadcastSuspend(
+fun sendOrderedBroadcastBlocking(
   context: Context,
   intent: Intent,
   receiverPermission: String?
 ): Bundle? {
-  return withTimeoutOrNull(30_000) {
-    return@withTimeoutOrNull withContext(Dispatchers.IO) {
-      return@withContext suspendCancellableCoroutine<Bundle?> { cancellableContinuation ->
-        try {
-          context.sendOrderedBroadcast(
-            intent,
-            receiverPermission,
-            object : BroadcastReceiver() {
-              override fun onReceive(context: Context?, resultIntent: Intent?) {
-                cancellableContinuation.resumeValueSafe(getResultExtras(false))
-              }
-            },
-            null,
-            Activity.RESULT_OK,
-            null,
-            null
-          )
-        } catch (error: Throwable) {
-          logcatError("sendOrderedBroadcastSuspend") {
-            "context.sendOrderedBroadcast() " +
-              "action=${intent.action} error: ${error.asLogIfImportantOrErrorMessage()}"
-          }
+  var result: Bundle? = null
+  val countDownLatch = CountDownLatch(1)
 
-          cancellableContinuation.resumeValueSafe(null)
+  try {
+    context.sendOrderedBroadcast(
+      intent,
+      receiverPermission,
+      object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, resultIntent: Intent?) {
+          result = getResultExtras(false)
+          countDownLatch.countDown()
         }
-      }
+      },
+      null,
+      Activity.RESULT_OK,
+      null,
+      null
+    )
+  } catch (error: Throwable) {
+    logcatError("sendOrderedBroadcastSuspend") {
+      "context.sendOrderedBroadcast() " +
+        "action=${intent.action} error: ${error.asLogIfImportantOrErrorMessage()}"
     }
+
+    return null
   }
+
+  countDownLatch.await(30, TimeUnit.SECONDS)
+  return result
 }

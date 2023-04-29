@@ -2,6 +2,6 @@ package com.github.k1rakishou.kpnc.domain
 
 interface TokenUpdater {
   fun reset()
-  fun updateToken(userId: String?, token: String): Boolean
+  fun updateToken(instanceAddress: String?, userId: String?, token: String): Result<Boolean>
   fun awaitUntilTokenUpdated()
 }

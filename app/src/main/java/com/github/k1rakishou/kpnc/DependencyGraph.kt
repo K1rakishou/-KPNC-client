@@ -1,8 +1,19 @@
 package com.github.k1rakishou.kpnc
 
 import android.content.Context
+import com.github.k1rakishou.kpnc.domain.ClientAppNotifier
+import com.github.k1rakishou.kpnc.domain.ClientAppNotifierImpl
+import com.github.k1rakishou.kpnc.domain.GoogleServicesChecker
+import com.github.k1rakishou.kpnc.domain.GoogleServicesCheckerImpl
+import com.github.k1rakishou.kpnc.domain.KPNCFirebaseServiceDelegate
+import com.github.k1rakishou.kpnc.domain.KPNCFirebaseServiceDelegateImpl
+import com.github.k1rakishou.kpnc.domain.MessageReceiver
+import com.github.k1rakishou.kpnc.domain.MessageReceiverImpl
+import com.github.k1rakishou.kpnc.domain.ServerDeliveryNotifier
+import com.github.k1rakishou.kpnc.domain.ServerDeliveryNotifierImpl
+import com.github.k1rakishou.kpnc.domain.TokenUpdater
+import com.github.k1rakishou.kpnc.domain.TokenUpdaterImpl
 import com.github.k1rakishou.kpnc.model.data.Endpoints
-import com.github.k1rakishou.kpnc.domain.*
 import com.github.k1rakishou.kpnc.model.repository.AccountRepository
 import com.github.k1rakishou.kpnc.model.repository.AccountRepositoryImpl
 import com.github.k1rakishou.kpnc.model.repository.PostRepository
@@ -15,7 +26,7 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 object DependencyGraph {
-  private val endpoints = Endpoints("http://127.0.0.1:3000")
+  private val endpoints = Endpoints()
 
   fun initialize(applicationContext: Context): List<Module> {
     val modules = mutableListOf<Module>()
@@ -74,5 +85,14 @@ object DependencyGraph {
       )
     }
     single<ClientAppNotifier> { ClientAppNotifierImpl(appContext = get()) }
+
+    single<ServerDeliveryNotifier> {
+      ServerDeliveryNotifierImpl(
+        sharedPrefs = get(),
+        endpoints = endpoints,
+        moshi = get(),
+        okHttpClient = get()
+      )
+    }
   }
 }

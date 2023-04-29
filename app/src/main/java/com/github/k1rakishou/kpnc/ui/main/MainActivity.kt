@@ -5,14 +5,33 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material.Button
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
+import androidx.compose.material.Text
+import androidx.compose.material.TextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.github.k1rakishou.kpnc.domain.GoogleServicesChecker
 import com.github.k1rakishou.kpnc.helpers.errorMessageOrClassName
+import com.github.k1rakishou.kpnc.helpers.isNotNullNorBlank
 import com.github.k1rakishou.kpnc.helpers.isUserIdValid
 import com.github.k1rakishou.kpnc.model.data.ui.AccountInfo
 import com.github.k1rakishou.kpnc.model.data.ui.UiResult
@@ -33,12 +52,11 @@ class MainActivity : ComponentActivity(), KoinComponent {
           modifier = Modifier.fillMaxSize(),
           color = MaterialTheme.colors.background
         ) {
-          val context = LocalContext.current
-
           val firebaseToken by mainViewModel.firebaseToken
           val googleServicesCheckResult by mainViewModel.googleServicesCheckResult
           val accountInfo by mainViewModel.accountInfo
           val rememberedUserId by mainViewModel.rememberedUserId
+          val rememberedInstanceAddress by mainViewModel.rememberedInstanceAddress
 
           Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -52,7 +70,8 @@ class MainActivity : ComponentActivity(), KoinComponent {
                 firebaseToken = firebaseToken,
                 accountInfo = accountInfo,
                 rememberedUserId = rememberedUserId,
-                onLogin = { userId -> mainViewModel.login(userId) },
+                rememberedInstanceAddress = rememberedInstanceAddress,
+                onLogin = { instanceAddress, userId -> mainViewModel.login(instanceAddress, userId) },
                 onLogout = { mainViewModel.logout() }
               )
             }
@@ -67,9 +86,10 @@ class MainActivity : ComponentActivity(), KoinComponent {
 private fun ColumnScope.Content(
   googleServicesCheckResult: GoogleServicesChecker.Result,
   rememberedUserId: String?,
+  rememberedInstanceAddress: String?,
   accountInfo: UiResult<AccountInfo>,
   firebaseToken: UiResult<String>,
-  onLogin: (String) -> Unit,
+  onLogin: (String, String) -> Unit,
   onLogout: () -> Unit
 ) {
   val context = LocalContext.current
@@ -112,8 +132,23 @@ private fun ColumnScope.Content(
   Spacer(modifier = Modifier.height(16.dp))
 
   var userId by remember { mutableStateOf(rememberedUserId ?: "") }
+  var instanceAddress by remember { mutableStateOf(rememberedInstanceAddress ?: "") }
   var isError by remember { mutableStateOf(!isUserIdValid(userId)) }
   val isLoggedIn = ((accountInfo as? UiResult.Value)?.value?.isValid == true) || isUserIdValid(rememberedUserId)
+
+  TextField(
+    modifier = Modifier
+      .wrapContentHeight()
+      .fillMaxWidth(),
+    enabled = !isLoggedIn,
+    label = { Text(text = "Instance address") },
+    value = instanceAddress,
+    onValueChange = {
+      instanceAddress = it
+    }
+  )
+
+  Spacer(modifier = Modifier.height(16.dp))
 
   TextField(
     modifier = Modifier
@@ -136,8 +171,10 @@ private fun ColumnScope.Content(
   Spacer(modifier = Modifier.height(4.dp))
 
   if (accountInfo is UiResult.Value) {
-    Text(text = "Account info: ${accountInfo.value}")
+    Text(text = accountInfo.value.asText())
   } else if (accountInfo is UiResult.Error) {
+    Text(text = accountInfo.throwable.errorMessageOrClassName(userReadable = true))
+
     LaunchedEffect(
       key1 = accountInfo.throwable,
       block = {
@@ -154,7 +191,7 @@ private fun ColumnScope.Content(
   val buttonEnabled = if (isLoggedIn) {
     true
   } else {
-    isUserIdValid(userId) && accountInfo !is UiResult.Loading
+    isUserIdValid(userId) && instanceAddress.isNotNullNorBlank() && accountInfo !is UiResult.Loading
   }
 
   Row {
@@ -165,7 +202,7 @@ private fun ColumnScope.Content(
           userId = ""
           onLogout()
         } else {
-          onLogin(userId)
+          onLogin(instanceAddress, userId)
         }
       }
     ) {

@@ -1,24 +1,25 @@
 package com.github.k1rakishou.kpnc.model.data
 
-@JvmInline
-value class Endpoints(
-  private val value: String
-) {
+class Endpoints {
 
-  fun getAccountInfoEndpoint(): String {
-    return "${value}/get_account_info"
+  fun getAccountInfoEndpoint(instanceAddress: String): String {
+    return "${validate(instanceAddress)}/get_account_info"
   }
 
-  fun updateFirebaseTokenEndpoint(): String {
-    return "${value}/update_firebase_token"
+  fun updateFirebaseTokenEndpoint(instanceAddress: String): String {
+    return "${validate(instanceAddress)}/update_firebase_token"
   }
 
-  fun watchPost(): String {
-    return "${value}/watch_post"
+  fun updateMessageDelivered(instanceAddress: String): String {
+    return "${validate(instanceAddress)}/update_message_delivered"
   }
 
-  fun sendTestPushEndpoint(): String {
-    return "${value}/send_test_push"
+  fun watchPost(instanceAddress: String): String {
+    return "${validate(instanceAddress)}/watch_post"
+  }
+
+  private fun validate(instanceAddress: String): String {
+    return instanceAddress.removeSuffix("/")
   }
 
 }
