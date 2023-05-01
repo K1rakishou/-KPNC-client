@@ -8,6 +8,8 @@ import com.github.k1rakishou.kpnc.helpers.suspendConvertWithJsonAdapter
 import com.github.k1rakishou.kpnc.helpers.unwrap
 import com.github.k1rakishou.kpnc.model.GenericClientException
 import com.github.k1rakishou.kpnc.model.data.Endpoints
+import com.github.k1rakishou.kpnc.model.data.network.UnwatchPostRequest
+import com.github.k1rakishou.kpnc.model.data.network.UnwatchPostResponseWrapper
 import com.github.k1rakishou.kpnc.model.data.network.WatchPostRequest
 import com.github.k1rakishou.kpnc.model.data.network.WatchPostResponseWrapper
 import com.squareup.moshi.Moshi
@@ -67,7 +69,44 @@ class PostRepositoryImpl(
   }
 
   override suspend fun unwatchPost(postUrl: String): Result<Boolean> {
-    TODO("Not yet implemented")
+    return withContext(Dispatchers.IO) {
+      return@withContext Result.Try {
+        val userId = sharedPrefs.getString(AppConstants.PrefKeys.USER_ID, null)
+          ?.takeIf { it.isNotNullNorBlank() }
+          ?: throw GenericClientException("UserId is not set")
+        val instanceAddress = sharedPrefs.getString(AppConstants.PrefKeys.INSTANCE_ADDRESS, null)
+          ?.takeIf { it.isNotNullNorBlank() }
+          ?: throw GenericClientException("InstanceAddress is not set")
+
+        val unwatchPostRequest = UnwatchPostRequest(
+          userId = userId,
+          postUrl = postUrl
+        )
+
+        val unwatchPostRequestJson = moshi.adapter(UnwatchPostRequest::class.java)
+          .toJson(unwatchPostRequest)
+
+        val requestBody = unwatchPostRequestJson.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+          .url(endpoints.unwatchPost(instanceAddress))
+          .post(requestBody)
+          .build()
+
+        val unwatchPostResponseWrapperAdapter = moshi
+          .adapter<UnwatchPostResponseWrapper>(UnwatchPostResponseWrapper::class.java)
+
+        okHttpClient.suspendConvertWithJsonAdapter(
+          request = request,
+          adapter = unwatchPostResponseWrapperAdapter
+        )
+          .unwrap()
+          .dataOrThrow()
+          .ensureSuccess()
+
+        return@Try true
+      }
+    }
   }
 
   companion object {

@@ -7,6 +7,7 @@ import org.joda.time.format.ISODateTimeFormat
 
 @Immutable
 data class AccountInfo(
+  val accountId: String,
   val isValid: Boolean,
   val validUntil: DateTime
 ) {

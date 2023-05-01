@@ -60,6 +60,9 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
             ACTION_START_WATCHING_POST -> {
               handleStartWatchingPost(intent, pendingResult)
             }
+            ACTION_STOP_WATCHING_POST -> {
+              handleStopWatchingPost(intent, pendingResult)
+            }
             else -> {
               logcatDebug(TAG) { "Unknown action: ${action}" }
             }
@@ -71,6 +74,41 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
         pendingResult.finish()
       }
     }
+  }
+
+  private suspend fun handleStopWatchingPost(
+    intent: Intent,
+    pendingResult: PendingResult
+  ) {
+    logcatDebug(TAG) { "Got ACTION_STOP_WATCHING_POST" }
+
+    val postUrl = intent.getStringExtra(PARAM_POST_URL)
+    if (postUrl.isNullOrBlank()) {
+      logcatError(TAG) { "handleStopWatchingPost() Post url was not provided" }
+      return
+    }
+
+    val unwatchPostResult = postRepository.unwatchPost(postUrl)
+
+    val unwatchPostClientResult = if (unwatchPostResult.isFailure) {
+      val exception = unwatchPostResult.exceptionOrNull()!!
+      logcatError(TAG) { "handleStopWatchingPost(${postUrl}) error: ${exception.asLogIfImportantOrErrorMessage()}" }
+
+      UnwatchPostResult(
+        error = exception.errorMessageOrClassName(userReadable = true)
+      )
+    } else {
+      UnwatchPostResult(data = DefaultSuccessResult())
+    }
+
+    val unwatchPostResultJson = moshi
+      .adapter<UnwatchPostResult>(UnwatchPostResult::class.java)
+      .toJson(unwatchPostClientResult)
+
+    val resultBundle = bundleOf(ACTION_STOP_WATCHING_POST_RESULT to unwatchPostResultJson)
+    pendingResult.setResultExtras(resultBundle)
+
+    logcatDebug(TAG) { "ACTION_STOP_WATCHING_POST done" }
   }
 
   private suspend fun handleStartWatchingPost(intent: Intent, pendingResult: PendingResult) {
@@ -151,7 +189,9 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
   }
 
   private fun isActionSupported(action: String?): Boolean {
-    return action == ACTION_GET_INFO || action == ACTION_START_WATCHING_POST
+    return action == ACTION_GET_INFO
+      || action == ACTION_START_WATCHING_POST
+      || action == ACTION_STOP_WATCHING_POST
   }
 
   @JsonClass(generateAdapter = true)
@@ -162,6 +202,12 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
 
   @JsonClass(generateAdapter = true)
   data class WatchPostResult(
+    override val data: DefaultSuccessResult? = null,
+    override val error: String? = null
+  ) : GenericResult<DefaultSuccessResult>()
+
+  @JsonClass(generateAdapter = true)
+  data class UnwatchPostResult(
     override val data: DefaultSuccessResult? = null,
     override val error: String? = null
   ) : GenericResult<DefaultSuccessResult>()
@@ -193,9 +239,11 @@ class KurobaExApiBoardcastReceiver : BroadcastReceiver(), KoinComponent {
     private const val ACTION_GET_INFO = "${PACKAGE}.get_info"
     private const val GET_INFO_RESULT = "${PACKAGE}.get_info_result"
 
-    private const val ACTION_START_WATCHING_POST = "${PACKAGE}.start_watching_post"
     private const val PARAM_POST_URL = "post_url"
+    private const val ACTION_START_WATCHING_POST = "${PACKAGE}.start_watching_post"
     private const val START_WATCHING_POST_RESULT = "${PACKAGE}.start_watching_post_result"
+    private const val ACTION_STOP_WATCHING_POST = "$PACKAGE.stop_watching_post"
+    private const val ACTION_STOP_WATCHING_POST_RESULT = "$PACKAGE.stop_watching_post_result"
   }
 
 }

@@ -18,6 +18,10 @@ class Endpoints {
     return "${validate(instanceAddress)}/watch_post"
   }
 
+  fun unwatchPost(instanceAddress: String): String {
+    return "${validate(instanceAddress)}/unwatch_post"
+  }
+
   private fun validate(instanceAddress: String): String {
     return instanceAddress.removeSuffix("/")
   }

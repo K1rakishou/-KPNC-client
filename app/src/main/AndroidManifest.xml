@@ -48,6 +48,7 @@
             <intent-filter>
                 <action android:name="com.github.k1rakishou.kpnc.get_info" />
                 <action android:name="com.github.k1rakishou.kpnc.start_watching_post" />
+                <action android:name="com.github.k1rakishou.kpnc.stop_watching_post" />
             </intent-filter>
 
         </receiver>

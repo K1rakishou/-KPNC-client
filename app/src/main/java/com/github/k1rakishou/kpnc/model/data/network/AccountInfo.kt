@@ -18,6 +18,8 @@ class AccountInfoResponseWrapper(
 
 @JsonClass(generateAdapter = true)
 data class AccountInfoResponse(
+  @Json(name = "account_id")
+  val accountId: String,
   @Json(name = "is_valid")
   val isValid: Boolean,
   @Json(name = "valid_until")

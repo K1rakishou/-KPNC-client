@@ -11,6 +11,7 @@ import com.github.k1rakishou.kpnc.domain.GoogleServicesChecker
 import com.github.k1rakishou.kpnc.domain.MessageReceiver
 import com.github.k1rakishou.kpnc.domain.TokenUpdater
 import com.github.k1rakishou.kpnc.helpers.asLogIfImportantOrErrorMessage
+import com.github.k1rakishou.kpnc.helpers.errorMessageOrClassName
 import com.github.k1rakishou.kpnc.helpers.isNotNullNorBlank
 import com.github.k1rakishou.kpnc.helpers.logcatDebug
 import com.github.k1rakishou.kpnc.helpers.logcatError
@@ -86,6 +87,7 @@ class MainViewModel(
           val accountInfoResponse = accountInfoResult.unwrap()
 
           val accountInfo = AccountInfo(
+            accountId = accountInfoResponse.accountId,
             isValid = accountInfoResponse.isValid,
             validUntil = DateTime(accountInfoResponse.validUntil),
           )
@@ -107,15 +109,27 @@ class MainViewModel(
 
         try {
           withTimeout(20_000) {
-            val tokenUpdated = tokenUpdater.updateToken(instanceAddress, userId, firebaseToken)
+            val tokenUpdateResult = tokenUpdater.updateToken(instanceAddress, userId, firebaseToken)
               .onFailure { error ->
                 logcatError(TAG) { "tokenUpdater.updateToken() " +
                   "error: ${error.asLogIfImportantOrErrorMessage()}" }
               }
-              .getOrDefault(false)
+
+            val tokenUpdated = if (tokenUpdateResult.isFailure) {
+              logcatError(TAG) {
+                "updateFirebaseToken() updateToken() " +
+                  "error: ${tokenUpdateResult.exceptionOrNull()!!.errorMessageOrClassName()}"
+              }
+
+              _accountInfo.value = UiResult.Error(tokenUpdateResult.exceptionOrNull()!!)
+              return@withTimeout
+            } else {
+              tokenUpdateResult.getOrThrow()
+            }
 
             if (!tokenUpdated) {
               logcatError(TAG) { "updateFirebaseToken() updateToken() returned false" }
+              _accountInfo.value = UiResult.Error(tokenUpdateResult.exceptionOrNull()!!)
               return@withTimeout
             }
 
@@ -133,6 +147,7 @@ class MainViewModel(
             val accountInfoResponse = accountInfoResult.getOrThrow()
 
             val accountInfo = AccountInfo(
+              accountId = accountInfoResponse.accountId,
               isValid = accountInfoResponse.isValid,
               validUntil = DateTime(accountInfoResponse.validUntil),
             )
@@ -162,7 +177,6 @@ class MainViewModel(
         }
 
         _accountInfo.value = UiResult.Empty
-        _rememberedUserId.value = null
       }
     }
   }

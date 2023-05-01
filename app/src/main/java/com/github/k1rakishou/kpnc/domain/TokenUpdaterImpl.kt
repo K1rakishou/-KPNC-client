@@ -96,7 +96,7 @@ class TokenUpdaterImpl(
           "onNewToken() updating token on the server... Done. Success: ${defaultSuccessResponse.success}"
         }
 
-        return@Try true
+        return@Try defaultSuccessResponse.success
       } finally {
         synchronized(this) {
           if (prevLatch === updateTokenLatch) {
